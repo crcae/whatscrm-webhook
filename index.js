@@ -164,7 +164,8 @@ app.post('/webhook', async (req, res) => {
                             lastMessage: { stringValue: text },
                             lastMessageTime: getTimestamp(),
                             assignedTo: { stringValue: agents[agentIndex] },
-                            assignedName: { stringValue: agentNames[agentIndex] }
+                            assignedName: { stringValue: agentNames[agentIndex] },
+                            archived: { booleanValue: false }
                         }
                     };
 
