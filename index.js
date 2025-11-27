@@ -96,6 +96,12 @@ app.post('/webhook', async (req, res) => {
             const from = message.from;
             const text = message.text ? message.text.body : "";
 
+            // Get contact name from WhatsApp profile
+            const contacts = body.entry[0].changes[0].value.contacts;
+            const profileName = contacts && contacts[0] && contacts[0].profile && contacts[0].profile.name
+                ? contacts[0].profile.name
+                : from; // Use full phone number if no name
+
             if (!text) {
                 res.sendStatus(200);
                 return;
@@ -127,30 +133,46 @@ app.post('/webhook', async (req, res) => {
                 });
 
                 const queryResults = await queryResponse.json();
+                console.log('🔍 Query results:', JSON.stringify(queryResults, null, 2));
+
                 let leadId;
                 let leadDocPath;
 
-                // Check if lead exists
-                if (!queryResults[0] || !queryResults[0].document) {
-                    // Create new lead
-                    leadId = `lead_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                // Check if lead exists - fixed the check
+                const leadExists = queryResults && queryResults.length > 0 && queryResults[0].document;
+
+                if (!leadExists) {
+                    console.log('📝 Creating new lead for', from);
+
+                    // Create new lead with unique ID
+                    leadId = `lead_${from.replace(/\+/g, '')}`; // Use phone as ID to prevent duplicates
                     leadDocPath = `${leadsPath}/${leadId}`;
+
+                    // Get next agent for Round Robin
+                    const agents = ['demo_agent_juan', 'demo_agent_maria'];
+                    const agentNames = ['Vendedor Juan', 'Vendedor María'];
+
+                    // Simple Round Robin: use timestamp to alternate
+                    const agentIndex = Math.floor(Date.now() / 1000) % agents.length;
 
                     const newLeadData = {
                         fields: {
-                            name: { stringValue: `Cliente ${from.slice(-4)}` },
+                            name: { stringValue: profileName },
                             phone: { stringValue: from },
                             status: { stringValue: 'nuevo' },
                             unreadCount: { integerValue: '1' },
                             lastMessage: { stringValue: text },
                             lastMessageTime: getTimestamp(),
-                            assignedTo: { stringValue: 'demo_agent_juan' },
-                            assignedName: { stringValue: 'Vendedor Juan' }
+                            assignedTo: { stringValue: agents[agentIndex] },
+                            assignedName: { stringValue: agentNames[agentIndex] }
                         }
                     };
 
                     await firestoreRequest(leadDocPath, 'PATCH', newLeadData);
+                    console.log(`✅ Created lead ${leadId} assigned to ${agentNames[agentIndex]}`);
                 } else {
+                    console.log('🔄 Updating existing lead');
+
                     // Update existing lead
                     const existingDoc = queryResults[0].document;
                     leadDocPath = existingDoc.name.split('/documents')[1];
@@ -161,6 +183,7 @@ app.post('/webhook', async (req, res) => {
                     const updateData = {
                         fields: {
                             ...existingDoc.fields,
+                            name: { stringValue: profileName }, // Update name in case it changed
                             lastMessage: { stringValue: text },
                             lastMessageTime: getTimestamp(),
                             unreadCount: { integerValue: String(currentUnread + 1) }
@@ -168,6 +191,7 @@ app.post('/webhook', async (req, res) => {
                     };
 
                     await firestoreRequest(leadDocPath, 'PATCH', updateData);
+                    console.log(`✅ Updated lead ${leadId}`);
                 }
 
                 // 2. Save message to subcollection
@@ -186,7 +210,7 @@ app.post('/webhook', async (req, res) => {
 
                 await firestoreRequest(messagePath, 'PATCH', messageData);
 
-                console.log(`✅ Message from ${from}: ${text}`);
+                console.log(`✅ Message from ${profileName} (${from}): ${text}`);
             } catch (error) {
                 console.error("Error en Firestore:", error);
             }
