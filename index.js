@@ -84,7 +84,11 @@ app.get('/webhook', (req, res) => {
 app.post('/webhook', async (req, res) => {
     const body = req.body;
 
+    // Log everything that arrives
+    console.log('📥 Webhook POST received:', JSON.stringify(body, null, 2));
+
     if (body.object === 'whatsapp_business_account') {
+        console.log('✅ WhatsApp Business Account event detected');
         if (body.entry && body.entry[0].changes && body.entry[0].changes[0].value.messages && body.entry[0].changes[0].value.messages[0]) {
             const message = body.entry[0].changes[0].value.messages[0];
             const from = message.from;
