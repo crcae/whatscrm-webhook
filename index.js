@@ -15,7 +15,7 @@ const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${FIREBASE_
 
 // Helper: Make Firestore REST API request
 async function firestoreRequest(path, method = 'GET', body = null) {
-    const url = `${FIRESTORE_BASE}${path}`;
+    const url = `${FIRESTORE_BASE}${path}?key=${FIREBASE_API_KEY}`;
     const options = {
         method,
         headers: {
@@ -29,6 +29,8 @@ async function firestoreRequest(path, method = 'GET', body = null) {
 
     const response = await fetch(url, options);
     if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Firestore API error (${response.status}):`, errorText);
         throw new Error(`Firestore API error: ${response.status}`);
     }
     return response.json();
@@ -103,7 +105,7 @@ app.post('/webhook', async (req, res) => {
                 const leadsPath = `/artifacts/${APP_ID}/public/data/leads`;
 
                 // 1. Query for existing lead by phone
-                const queryUrl = `${FIRESTORE_BASE}${leadsPath}:runQuery`;
+                const queryUrl = `${FIRESTORE_BASE}${leadsPath}:runQuery?key=${FIREBASE_API_KEY}`;
                 const queryBody = {
                     structuredQuery: {
                         from: [{ collectionId: 'leads' }],
